@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ausmalbild Generator mit Voransicht</title>
+  <style>
+    :root{
+      --bg:#0f1115;
+      --panel:#171a21;
+      --panel-2:#1f2430;
+      --text:#eef2f7;
+      --muted:#aeb7c6;
+      --accent:#67b7ff;
+      --border:#2c3444;
+      --shadow:0 12px 28px rgba(0,0,0,.25);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:linear-gradient(180deg,#0c0f14 0%, #11151d 100%);
+      color:var(--text);
+    }
+    .wrap{
+      display:grid;
+      grid-template-columns:380px 1fr;
+      gap:18px;
+      padding:18px;
+      min-height:100vh;
+    }
+    .panel{
+      background:rgba(23,26,33,.96);
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+    }
+    .sidebar{
+      padding:18px;
+      position:sticky;
+      top:18px;
+      height:fit-content;
+    }
+    h1{margin:0 0 6px;font-size:1.35rem;line-height:1.2;letter-spacing:.01em}
+    .subtitle{color:var(--muted);font-size:.95rem;margin:0 0 14px;line-height:1.45}
+    .controls{display:grid;gap:12px}
+    .group{padding:14px;background:var(--panel-2);border:1px solid var(--border);border-radius:14px}
+    .group h2{margin:0 0 10px;font-size:1rem}
+    label{display:flex;justify-content:space-between;gap:10px;font-size:.92rem;margin-bottom:6px;color:#dbe5f4}
+    .value{color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+    input[type="range"]{width:100%;accent-color:var(--accent)}
+    input[type="file"]{width:100%;padding:10px 12px;border:1px dashed #4a556a;border-radius:12px;background:#121722;color:var(--text)}
+    input[type="number"]{width:100%;padding:10px 12px;border:1px solid #4a556a;border-radius:12px;background:#121722;color:var(--text);font:inherit}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap}
+    button{cursor:pointer;border:1px solid var(--border);background:#121824;color:var(--text);padding:10px 14px;border-radius:12px;transition:.18s ease;font-weight:600}
+    button:hover{transform:translateY(-1px);border-color:#42506a;background:#161e2e}
+    button.primary{background:linear-gradient(180deg,#1a7fe0,#1267b5);border-color:#2b7fd3}
+    button.primary:hover{background:linear-gradient(180deg,#2390fb,#1775cb)}
+    .small{font-size:.85rem;color:var(--muted);line-height:1.4}
+    .main{padding:18px;display:grid;gap:18px;align-content:start}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+    .card{background:var(--panel-2);border:1px solid var(--border);border-radius:16px;padding:12px;overflow:hidden}
+    .card h3{margin:0 0 10px;font-size:1rem;color:#f4f7fb}
+    .card p{margin:0 0 10px;color:var(--muted);font-size:.88rem;line-height:1.4}
+    .canvas-wrap{border-radius:14px;overflow:auto;background:#0f131b;border:1px solid #2a3140;min-height:180px;display:flex;align-items:center;justify-content:center;padding:8px}
+    canvas{max-width:100%;height:auto;image-rendering:pixelated;display:block;background:#fff;border-radius:10px}
+    .palette{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+    .swatch{background:#101520;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    .swatch-color{height:50px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .swatch-meta{padding:10px;display:grid;gap:4px;font-size:.84rem}
+    .swatch-num{font-weight:800;color:#fff}
+    .swatch-hex{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.78rem}
+    .hint{padding:12px 14px;border-radius:12px;border:1px solid #2b4250;background:#11202a;color:#d1ecff;font-size:.9rem;line-height:1.45}
+    .status{padding:10px 12px;border-radius:12px;background:#101722;border:1px solid var(--border);color:var(--muted);font-size:.9rem;min-height:44px;display:flex;align-items:center}
+    @media (max-width:1100px){.wrap{grid-template-columns:1fr}.sidebar{position:static}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="panel sidebar">
+      <h1>Ausmalbild Generator</h1>
+      <p class="subtitle">Erstellt ein Malen-nach-Zahlen-Ausmalbild mit sortierter Palette, nummerierten Flächen und mehreren Zwischenansichten zur Kontrolle.</p>
+
+      <div class="controls">
+        <div class="group">
+          <h2>Bildquelle</h2>
+          <input id="fileInput" type="file" accept="image/*" />
+          <p class="small" style="margin-top:10px">Lade ein Bild hoch. Das Tool erzeugt daraus ein vereinfachtes, nummeriertes Ausmalbild.</p>
+        </div>
+
+        <div class="group">
+          <h2>Verarbeitung</h2>
+
+          <label for="colorCount"><span>Farbanzahl</span><span class="value" id="colorCountVal">28</span></label>
+          <input id="colorCount" type="range" min="2" max="36" step="1" value="28" />
+
+          <label for="resolution"><span>Arbeitsauflösung<br><span class="small">lange Kante für Analyse</span></span><span class="value" id="resolutionVal">800 px</span></label>
+          <input id="resolution" type="range" min="60" max="1200" step="10" value="800" />
+
+          <label for="exportResolution"><span>Exportgröße<br><span class="small">lange Kante für Download</span></span><span class="value" id="exportResolutionVal">3000 px</span></label>
+          <input id="exportResolution" type="range" min="800" max="5000" step="100" value="3000" />
+
+          <label for="blur"><span>Glättung</span><span class="value" id="blurVal">0.0 px</span></label>
+          <input id="blur" type="range" min="0" max="4" step="0.1" value="0" />
+
+          <label for="minRegion"><span>Detailfilter<br><span class="small">kleine Regionen</span></span><span class="value" id="minRegionVal">5</span></label>
+          <input id="minRegion" type="range" min="0" max="150" step="1" value="5" />
+
+          <label for="mergeNearby"><span>Kleine Felder zusammenführen<br><span class="small">angrenzende Felder bis Größe</span></span><span class="value" id="mergeNearbyVal">30</span></label>
+          <input id="mergeNearby" type="range" min="0" max="300" step="1" value="30" />
+
+          <label for="maxRegions"><span>Maximale Ausmalfelder<br><span class="small">0 = unbegrenzt</span></span><span class="value" id="maxRegionsVal">3000</span></label>
+          <input id="maxRegions" type="number" min="0" max="20000" step="50" value="3000" />
+
+          <label for="labelMin"><span>Beschriftung ab Flächengröße</span><span class="value" id="labelMinVal">2</span></label>
+          <input id="labelMin" type="range" min="0" max="150" step="1" value="2" />
+
+          <label for="numberScale"><span>Nummerngröße</span><span class="value" id="numberScaleVal">0.35x</span></label>
+          <input id="numberScale" type="range" min="0.25" max="1.5" step="0.05" value="0.35" />
+
+          <label for="lineWidth"><span>Linienbreite</span><span class="value" id="lineWidthVal">2.1</span></label>
+          <input id="lineWidth" type="range" min="1" max="4" step="0.1" value="2.1" />
+
+          <label for="previewScale"><span>Vorschau-Zoom</span><span class="value" id="previewScaleVal">3x</span></label>
+          <input id="previewScale" type="range" min="1" max="12" step="1" value="3" />
+        </div>
+
+        <div class="group">
+          <h2>Aktionen</h2>
+          <div class="btnrow">
+            <button class="primary" id="generateBtn">Neu berechnen</button>
+            <button id="downloadOutlineBtn">Ausmalbild herunterladen</button>
+            <button id="downloadColorBtn">Farbvorschau herunterladen</button>
+            <button id="downloadRegionBtn">Farbvorschau + Konturen herunterladen</button>
+            <button id="downloadPaletteBtn">Farbpalette herunterladen</button>
+          </div>
+          <p class="small" style="margin-top:10px">Farbpalette wird nach ähnlichen Farbtönen gruppiert und innerhalb der Gruppen nach Helligkeit sortiert. Die Nummern folgen genau dieser Reihenfolge. Die Exportdateien nutzen die gewählte Exportgröße.</p>
+        </div>
+
+        <div class="status" id="status">Bitte ein Bild hochladen.</div>
+      </div>
+    </aside>
+
+    <main class="panel main">
+      <div class="hint"><strong>Zwischenansichten:</strong> Du kannst direkt vergleichen, wie sich Rasterung, Farbvereinfachung, Regionen und das finale Ausmalbild unterscheiden. Die Vorschau bleibt handlich, die Download-Dateien können deutlich größer sein.</div>
+
+      <section class="grid">
+        <div class="card">
+          <h3>1. Original</h3>
+          <p>Ausgangsbild im Verhältnis der Vorlage.</p>
+          <div class="canvas-wrap"><canvas id="originalCanvas" width="320" height="220"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h3>2. Arbeitsraster</h3>
+          <p>Verkleinerte Zwischenstufe mit der gewählten Arbeitsauflösung.</p>
+          <div class="canvas-wrap"><canvas id="rasterCanvas" width="320" height="220"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h3>3. Farbvereinfachung</h3>
+          <p>Reduzierte Farbflächen mit sortierter Palette und sichtbaren Nummern.</p>
+          <div class="canvas-wrap"><canvas id="quantCanvas" width="320" height="220"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h3>4. Regionen & Konturen</h3>
+          <p>Abgrenzung der vereinfachten Flächen mit Konturen und Nummern.</p>
+          <div class="canvas-wrap"><canvas id="regionCanvas" width="320" height="220"></canvas></div>
+        </div>
+
+        <div class="card" style="grid-column:1 / -1">
+          <h3>5. Finales Ausmalbild</h3>
+          <p>Weiße Malvorlage mit Konturen und Nummern. Die Nummern entsprechen der sortierten Palette darunter.</p>
+          <div class="canvas-wrap"><canvas id="outlineCanvas" width="640" height="420"></canvas></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Palette & Reihenfolge</h3>
+        <p>Ähnliche Farben stehen nebeneinander, innerhalb eines Farbblocks sind die Farben nach Helligkeit sortiert.</p>
+        <div class="palette" id="palette"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    const fileInput = document.getElementById('fileInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const statusEl = document.getElementById('status');
+
+    const sliders = {
+      colorCount: document.getElementById('colorCount'),
+      resolution: document.getElementById('resolution'),
+      exportResolution: document.getElementById('exportResolution'),
+      blur: document.getElementById('blur'),
+      minRegion: document.getElementById('minRegion'),
+      mergeNearby: document.getElementById('mergeNearby'),
+      maxRegions: document.getElementById('maxRegions'),
+      labelMin: document.getElementById('labelMin'),
+      numberScale: document.getElementById('numberScale'),
+      lineWidth: document.getElementById('lineWidth'),
+      previewScale: document.getElementById('previewScale')
+    };
+
+    const sliderLabels = {
+      colorCount: document.getElementById('colorCountVal'),
+      resolution: document.getElementById('resolutionVal'),
+      exportResolution: document.getElementById('exportResolutionVal'),
+      blur: document.getElementById('blurVal'),
+      minRegion: document.getElementById('minRegionVal'),
+      mergeNearby: document.getElementById('mergeNearbyVal'),
+      maxRegions: document.getElementById('maxRegionsVal'),
+      labelMin: document.getElementById('labelMinVal'),
+      numberScale: document.getElementById('numberScaleVal'),
+      lineWidth: document.getElementById('lineWidthVal'),
+      previewScale: document.getElementById('previewScaleVal')
+    };
+
+    const canvases = {
+      original: document.getElementById('originalCanvas'),
+      raster: document.getElementById('rasterCanvas'),
+      quant: document.getElementById('quantCanvas'),
+      region: document.getElementById('regionCanvas'),
+      outline: document.getElementById('outlineCanvas')
+    };
+
+    const exportCanvases = {
+      quant: document.createElement('canvas'),
+      region: document.createElement('canvas'),
+      outline: document.createElement('canvas')
+    };
+
+    const paletteEl = document.getElementById('palette');
+    const downloadOutlineBtn = document.getElementById('downloadOutlineBtn');
+    const downloadColorBtn = document.getElementById('downloadColorBtn');
+    const downloadRegionBtn = document.getElementById('downloadRegionBtn');
+    const downloadPaletteBtn = document.getElementById('downloadPaletteBtn');
+
+    const sourceImg = new Image();
+    let hasImage = false;
+    let currentResult = null;
+    let renderTimeout = null;
+
+    updateLabels();
+    drawPlaceholder();
+
+    function updateLabels(){
+      sliderLabels.colorCount.textContent = sliders.colorCount.value;
+      sliderLabels.resolution.textContent = sliders.resolution.value + ' px';
+      sliderLabels.exportResolution.textContent = sliders.exportResolution.value + ' px';
+      sliderLabels.blur.textContent = Number(sliders.blur.value).toFixed(1) + ' px';
+      sliderLabels.minRegion.textContent = sliders.minRegion.value;
+      sliderLabels.mergeNearby.textContent = sliders.mergeNearby.value;
+      sliderLabels.maxRegions.textContent = sliders.maxRegions.value;
+      sliderLabels.labelMin.textContent = sliders.labelMin.value;
+      sliderLabels.numberScale.textContent = Number(sliders.numberScale.value).toFixed(2) + 'x';
+      sliderLabels.lineWidth.textContent = Number(sliders.lineWidth.value).toFixed(1);
+      sliderLabels.previewScale.textContent = sliders.previewScale.value + 'x';
+    }
+
+    Object.values(sliders).forEach(slider=>{
+      slider.addEventListener('input', ()=>{
+        updateLabels();
+        if(hasImage) scheduleProcess();
+      });
+    });
+
+    fileInput.addEventListener('change', e=>{
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+
+      const reader = new FileReader();
+      reader.onload = ev=>{
+        sourceImg.onload = ()=>{
+          hasImage = true;
+          processImage();
+        };
+        sourceImg.onerror = ()=>setStatus('Das Bild konnte nicht geladen werden.');
+        sourceImg.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    generateBtn.addEventListener('click', ()=>{
+      if(!hasImage){
+        setStatus('Bitte zuerst ein Bild hochladen.');
+        return;
+      }
+      processImage();
+    });
+
+    downloadOutlineBtn.addEventListener('click', ()=>{
+      if(!currentResult){
+        setStatus('Es gibt noch kein generiertes Ausmalbild.');
+        return;
+      }
+      downloadCanvas(exportCanvases.outline, 'ausmalbild_nummeriert.png');
+    });
+
+    downloadColorBtn.addEventListener('click', ()=>{
+      if(!currentResult){
+        setStatus('Es gibt noch keine Farbansicht.');
+        return;
+      }
+      downloadCanvas(exportCanvases.quant, 'farbvorschau_reduziert.png');
+    });
+
+    downloadRegionBtn.addEventListener('click', ()=>{
+      if(!currentResult){
+        setStatus('Es gibt noch keine Farbansicht mit Konturen.');
+        return;
+      }
+      downloadCanvas(exportCanvases.region, 'farbvorschau_mit_konturen.png');
+    });
+
+    downloadPaletteBtn.addEventListener('click', ()=>{
+      if(!currentResult){
+        setStatus('Es gibt noch keine Farbpalette.');
+        return;
+      }
+      const paletteCanvas = createPaletteCanvas(currentResult.palette);
+      downloadCanvas(paletteCanvas, 'farbpalette_nummeriert.png');
+    });
+
+    function scheduleProcess(){
+      clearTimeout(renderTimeout);
+      renderTimeout = setTimeout(processImage, 180);
+    }
+
+    function setStatus(text){
+      statusEl.textContent = text;
+    }
+
+    function downloadCanvas(canvas, filename){
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = filename;
+      link.click();
+    }
+
+    async function processImage(){
+      if(!hasImage) return;
+
+      setStatus('Verarbeite Bild...');
+      await new Promise(resolve=>setTimeout(resolve, 10));
+
+      try{
+        const colorCount = parseInt(sliders.colorCount.value, 10);
+        const longestSide = parseInt(sliders.resolution.value, 10);
+        const exportLongest = parseInt(sliders.exportResolution.value, 10);
+        const blurPx = parseFloat(sliders.blur.value);
+        const minRegion = parseInt(sliders.minRegion.value, 10);
+        const mergeNearby = parseInt(sliders.mergeNearby.value, 10);
+        const maxRegions = Math.max(0, parseInt(sliders.maxRegions.value, 10) || 0);
+        const labelMin = parseInt(sliders.labelMin.value, 10);
+        const numberScale = parseFloat(sliders.numberScale.value);
+        const lineWidth = parseFloat(sliders.lineWidth.value);
+        const previewScale = parseInt(sliders.previewScale.value, 10);
+
+        const dims = fitInto(sourceImg.naturalWidth || sourceImg.width, sourceImg.naturalHeight || sourceImg.height, longestSide);
+        const srcCanvas = document.createElement('canvas');
+        srcCanvas.width = dims.w;
+        srcCanvas.height = dims.h;
+        const srcCtx = srcCanvas.getContext('2d', {willReadFrequently:true});
+
+        srcCtx.clearRect(0,0,dims.w,dims.h);
+        srcCtx.fillStyle = '#ffffff';
+        srcCtx.fillRect(0,0,dims.w,dims.h);
+        srcCtx.imageSmoothingEnabled = true;
+        srcCtx.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none';
+        srcCtx.drawImage(sourceImg, 0, 0, dims.w, dims.h);
+        srcCtx.filter = 'none';
+
+        const imageData = srcCtx.getImageData(0,0,dims.w,dims.h);
+        const pixelCount = dims.w * dims.h;
+        const pixels = new Array(pixelCount);
+
+        for(let i=0, p=0; i<imageData.data.length; i+=4, p++){
+          pixels[p] = [imageData.data[i], imageData.data[i+1], imageData.data[i+2]];
+        }
+
+        const q = quantizeKMeans(pixels, colorCount, 9);
+        const sortedPalette = sortPalette(q.centroids);
+        const remap = new Map();
+
+        sortedPalette.forEach((color, sortedIndex)=>{
+          remap.set(color.originalIndex, sortedIndex);
+        });
+
+        let labels = new Uint16Array(pixelCount);
+        for(let i=0; i<pixelCount; i++){
+          labels[i] = remap.get(q.assignments[i]);
+        }
+
+        const palette = sortedPalette.map(color=>[
+          Math.round(color.rgb[0]),
+          Math.round(color.rgb[1]),
+          Math.round(color.rgb[2])
+        ]);
+
+        labels = simplifySmallRegions(labels, dims.w, dims.h, minRegion);
+        labels = mergeNearbySmallRegions(labels, dims.w, dims.h, mergeNearby, maxRegions);
+        const regionsData = buildRegions(labels, dims.w, dims.h);
+        const exportScale = Math.max(1, exportLongest / Math.max(dims.w, dims.h));
+
+        currentResult = {
+          w:dims.w,
+          h:dims.h,
+          palette,
+          labels,
+          regionsData,
+          lineWidth,
+          labelMin,
+          numberScale,
+          previewScale,
+          exportScale,
+          exportLongest,
+          srcCanvas
+        };
+
+        drawAll();
+        const exportW = Math.round(dims.w * exportScale);
+        const exportH = Math.round(dims.h * exportScale);
+        setStatus(`Fertig. ${palette.length} Farben, ${regionsData.regions.length} Regionen. Export: ${exportW} × ${exportH}px.`);
+      }catch(error){
+        console.error(error);
+        setStatus('Beim Verarbeiten ist ein Fehler aufgetreten. Reduziere testweise Auflösung oder Farbanzahl.');
+      }
+    }
+
+    function drawAll(){
+      const {w,h,palette,labels,regionsData,lineWidth,labelMin,numberScale,previewScale,exportScale,srcCanvas} = currentResult;
+      drawOriginalPreview(sourceImg, canvases.original, false);
+      drawOriginalPreview(srcCanvas, canvases.raster, true);
+      drawColorGrid(canvases.quant, labels, palette, w, h, previewScale, regionsData, labelMin, numberScale);
+      drawRegionPreview(canvases.region, labels, palette, w, h, previewScale, lineWidth, regionsData, labelMin, numberScale);
+      drawOutline(canvases.outline, labels, w, h, previewScale, lineWidth, regionsData, labelMin, numberScale);
+
+      drawColorGrid(exportCanvases.quant, labels, palette, w, h, exportScale, regionsData, labelMin, numberScale);
+      drawRegionPreview(exportCanvases.region, labels, palette, w, h, exportScale, lineWidth, regionsData, labelMin, numberScale);
+      drawOutline(exportCanvases.outline, labels, w, h, exportScale, lineWidth, regionsData, labelMin, numberScale);
+
+      renderPalette(palette);
+    }
+
+    function fitInto(w,h,longest){
+      if(!w || !h) return {w:longest,h:longest};
+      if(w >= h) return {w:longest, h:Math.max(1, Math.round(h / w * longest))};
+      return {h:longest, w:Math.max(1, Math.round(w / h * longest))};
+    }
+
+    function drawOriginalPreview(imgLike, canvas, pixelate){
+      const width = imgLike.naturalWidth || imgLike.width;
+      const height = imgLike.naturalHeight || imgLike.height;
+      const maxW = 900;
+      const maxH = 520;
+      const scale = Math.min(maxW / width, maxH / height, 1);
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.imageSmoothingEnabled = !pixelate;
+      ctx.drawImage(imgLike, 0, 0, canvas.width, canvas.height);
+    }
+
+    function drawColorGrid(canvas, labels, palette, w, h, scale, regionsData=null, labelMin=0, numberScale=1){
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      for(let y=0; y<h; y++){
+        for(let x=0; x<w; x++){
+          const idx = y*w + x;
+          const c = palette[labels[idx]];
+          ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+          ctx.fillRect(x*scale, y*scale, scale, scale);
+        }
+      }
+      if(regionsData){
+        drawRegionNumbers(ctx, regionsData, scale, labelMin, numberScale);
+      }
+    }
+
+    function drawRegionPreview(canvas, labels, palette, w, h, scale, lineWidth, regionsData=null, labelMin=0, numberScale=1){
+      drawColorGrid(canvas, labels, palette, w, h, scale, regionsData, labelMin, numberScale);
+      drawBoundaries(canvas, labels, w, h, scale, '#111', lineWidth);
+    }
+
+    function drawOutline(canvas, labels, w, h, scale, lineWidth, regionsData, labelMin, numberScale){
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      drawBoundaries(canvas, labels, w, h, scale, '#000', lineWidth);
+      drawRegionNumbers(ctx, regionsData, scale, labelMin, numberScale);
+    }
+
+    function drawBoundaries(canvas, labels, w, h, scale, color, lineWidth){
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+
+      for(let y=0; y<h; y++){
+        for(let x=0; x<w; x++){
+          const idx = y*w+x;
+          const current = labels[idx];
+
+          if(x===0 || labels[idx-1] !== current){
+            const px = x*scale;
+            const py = y*scale;
+            ctx.moveTo(px, py);
+            ctx.lineTo(px, py+scale);
+          }
+          if(y===0 || labels[idx-w] !== current){
+            const px = x*scale;
+            const py = y*scale;
+            ctx.moveTo(px, py);
+            ctx.lineTo(px+scale, py);
+          }
+          if(x===w-1 || labels[idx+1] !== current){
+            const px = (x+1)*scale;
+            const py = y*scale;
+            ctx.moveTo(px, py);
+            ctx.lineTo(px, py+scale);
+          }
+          if(y===h-1 || labels[idx+w] !== current){
+            const px = x*scale;
+            const py = (y+1)*scale;
+            ctx.moveTo(px, py);
+            ctx.lineTo(px+scale, py);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+
+    function drawRegionNumbers(ctx, regionsData, scale, labelMin, numberScale){
+      const placed = [];
+      const minDistance = Math.max(10, scale * 1.6 * numberScale);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const regions = regionsData.regions.slice().sort((a,b)=>b.size-a.size);
+
+      for(const region of regions){
+        if(region.size < labelMin) continue;
+        const pos = bestLabelPosition(region, scale);
+        if(!pos) continue;
+
+        let tooClose = false;
+        for(const p of placed){
+          const dx = p.x - pos.x;
+          const dy = p.y - pos.y;
+          if(dx*dx + dy*dy < minDistance*minDistance){
+            tooClose = true;
+            break;
+          }
+        }
+        if(tooClose) continue;
+
+        const text = String(region.color + 1);
+        const fontSize = clamp(Math.sqrt(region.size) * scale * 0.16 * numberScale, Math.max(8, scale * 0.28 * numberScale), Math.max(14, scale * 1.0 * numberScale));
+        ctx.font = `700 ${fontSize}px Inter, Arial, sans-serif`;
+
+        const metrics = ctx.measureText(text);
+        const padX = Math.max(4, fontSize * 0.24);
+        const padY = Math.max(3, fontSize * 0.18);
+        const boxW = metrics.width + padX*2;
+        const boxH = fontSize + padY*1.6;
+
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        roundRect(ctx, pos.x - boxW/2, pos.y - boxH/2, boxW, boxH, Math.max(4, fontSize * 0.22));
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(0,0,0,.22)';
+        ctx.lineWidth = 1;
+        roundRect(ctx, pos.x - boxW/2, pos.y - boxH/2, boxW, boxH, Math.max(4, fontSize * 0.22));
+        ctx.stroke();
+
+        ctx.fillStyle = '#111';
+        ctx.fillText(text, pos.x, pos.y + 0.5);
+        placed.push(pos);
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r){
+      ctx.beginPath();
+      ctx.moveTo(x+r, y);
+      ctx.arcTo(x+w, y, x+w, y+h, r);
+      ctx.arcTo(x+w, y+h, x, y+h, r);
+      ctx.arcTo(x, y+h, x, y, r);
+      ctx.arcTo(x, y, x+w, y, r);
+      ctx.closePath();
+    }
+
+    function bestLabelPosition(region, scale){
+      if(!region.cells || !region.cells.length) return null;
+      const cx = region.sumX / region.size;
+      const cy = region.sumY / region.size;
+      let best = null;
+      let bestDist = Infinity;
+
+      for(const cell of region.cells){
+        const dx = cell.x - cx;
+        const dy = cell.y - cy;
+        const distance = dx*dx + dy*dy;
+        if(distance < bestDist){
+          bestDist = distance;
+          best = cell;
+        }
+      }
+
+      if(!best) return null;
+      return {x: best.x * scale + scale/2, y: best.y * scale + scale/2};
+    }
+
+    function renderPalette(palette){
+      paletteEl.innerHTML = '';
+      palette.forEach((rgb, i)=>{
+        const item = document.createElement('div');
+        item.className = 'swatch';
+
+        const colorDiv = document.createElement('div');
+        colorDiv.className = 'swatch-color';
+        colorDiv.style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+
+        const meta = document.createElement('div');
+        meta.className = 'swatch-meta';
+
+        const num = document.createElement('div');
+        num.className = 'swatch-num';
+        num.textContent = `Nr. ${i+1}`;
+
+        const hex = document.createElement('div');
+        hex.className = 'swatch-hex';
+        hex.textContent = rgbToHex(rgb);
+
+        meta.appendChild(num);
+        meta.appendChild(hex);
+        item.appendChild(colorDiv);
+        item.appendChild(meta);
+        paletteEl.appendChild(item);
+      });
+    }
+
+    function createPaletteCanvas(palette){
+      const swatchW = 220;
+      const swatchH = 92;
+      const gap = 14;
+      const margin = 28;
+      const titleH = 54;
+      const cols = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(palette.length * 1.4))));
+      const rows = Math.ceil(palette.length / cols);
+      const canvas = document.createElement('canvas');
+      canvas.width = margin * 2 + cols * swatchW + (cols - 1) * gap;
+      canvas.height = margin * 2 + titleH + rows * swatchH + (rows - 1) * gap;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#111111';
+      ctx.font = '700 28px Inter, Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Farbpalette', margin, margin + 16);
+
+      ctx.font = '400 16px Inter, Arial, sans-serif';
+      ctx.fillStyle = '#444444';
+      ctx.fillText('Nummern entsprechen den Flächen im Ausmalbild.', margin, margin + 44);
+
+      palette.forEach((rgb, i)=>{
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = margin + col * (swatchW + gap);
+        const y = margin + titleH + row * (swatchH + gap);
+        const hex = rgbToHex(rgb);
+
+        ctx.fillStyle = '#f7f7f7';
+        roundRect(ctx, x, y, swatchW, swatchH, 12);
+        ctx.fill();
+        ctx.strokeStyle = '#222222';
+        ctx.lineWidth = 1;
+        roundRect(ctx, x, y, swatchW, swatchH, 12);
+        ctx.stroke();
+
+        ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+        roundRect(ctx, x + 10, y + 10, 70, swatchH - 20, 8);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.25)';
+        ctx.stroke();
+
+        ctx.fillStyle = '#111111';
+        ctx.font = '700 24px Inter, Arial, sans-serif';
+        ctx.fillText(`Nr. ${i + 1}`, x + 94, y + 29);
+        ctx.font = '500 17px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        ctx.fillStyle = '#333333';
+        ctx.fillText(hex, x + 94, y + 58);
+      });
+
+      return canvas;
+    }
+
+    function rgbToHex(rgb){
+      return '#' + rgb.map(value=>value.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+
+    function clamp(value, min, max){
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function quantizeKMeans(pixels, k, iterations){
+      const n = pixels.length;
+      const centroids = seedCentroids(pixels, k);
+      const assignments = new Uint16Array(n);
+
+      for(let iter=0; iter<iterations; iter++){
+        const sums = new Array(k);
+        const counts = new Uint32Array(k);
+        for(let i=0; i<k; i++) sums[i] = [0,0,0];
+
+        for(let i=0; i<n; i++){
+          const p = pixels[i];
+          let best = 0;
+          let bestDistance = Infinity;
+          for(let c=0; c<k; c++){
+            const cc = centroids[c];
+            const dr = p[0]-cc[0];
+            const dg = p[1]-cc[1];
+            const db = p[2]-cc[2];
+            const distance = dr*dr + dg*dg + db*db;
+            if(distance < bestDistance){
+              bestDistance = distance;
+              best = c;
+            }
+          }
+          assignments[i] = best;
+          counts[best]++;
+          sums[best][0] += p[0];
+          sums[best][1] += p[1];
+          sums[best][2] += p[2];
+        }
+
+        for(let c=0; c<k; c++){
+          if(counts[c] > 0){
+            centroids[c] = [
+              sums[c][0] / counts[c],
+              sums[c][1] / counts[c],
+              sums[c][2] / counts[c]
+            ];
+          }else{
+            const randomPixel = pixels[Math.floor(Math.random() * n)];
+            centroids[c] = [randomPixel[0], randomPixel[1], randomPixel[2]];
+          }
+        }
+      }
+
+      return {centroids, assignments};
+    }
+
+    function seedCentroids(pixels, k){
+      const n = pixels.length;
+      const centroids = [];
+      for(let i=0; i<k; i++){
+        const idx = Math.floor((i + 0.5) / k * Math.max(0, n - 1));
+        const p = pixels[idx];
+        centroids.push([p[0], p[1], p[2]]);
+      }
+      return centroids;
+    }
+
+    function sortPalette(centroids){
+      return centroids.map((rgb, originalIndex)=>{
+        const hsl = rgbToHsl(rgb[0], rgb[1], rgb[2]);
+        const isGray = hsl.s < 0.09;
+        const hueBucket = isGray ? 999 : Math.floor(hsl.h / 20);
+        return {rgb, originalIndex, hsl, hueBucket, isGray};
+      }).sort((a,b)=>{
+        if(a.hueBucket !== b.hueBucket) return a.hueBucket - b.hueBucket;
+        if(a.isGray && b.isGray) return a.hsl.l - b.hsl.l;
+        if(a.hsl.l !== b.hsl.l) return a.hsl.l - b.hsl.l;
+        return a.hsl.s - b.hsl.s;
+      });
+    }
+
+    function rgbToHsl(r, g, b){
+      r/=255; g/=255; b/=255;
+      const max = Math.max(r,g,b), min = Math.min(r,g,b);
+      let h = 0, s = 0;
+      const l = (max+min)/2;
+      if(max !== min){
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch(max){
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          default: h = (r - g) / d + 4; break;
+        }
+        h *= 60;
+      }
+      return {h, s, l};
+    }
+
+    function simplifySmallRegions(labels, w, h, minRegion){
+      if(minRegion <= 0) return labels;
+      let current = labels.slice();
+
+      for(let pass=0; pass<4; pass++){
+        const regionsData = buildRegions(current, w, h);
+        let changed = false;
+
+        for(const region of regionsData.regions){
+          if(region.size >= minRegion) continue;
+
+          const neighborEdgeCounts = new Map();
+
+          for(const cell of region.cells){
+            const idx = cell.y*w + cell.x;
+            const curColor = current[idx];
+            if(cell.x > 0){
+              const n = current[idx-1];
+              if(n !== curColor) neighborEdgeCounts.set(n, (neighborEdgeCounts.get(n)||0)+1);
+            }
+            if(cell.x < w-1){
+              const n = current[idx+1];
+              if(n !== curColor) neighborEdgeCounts.set(n, (neighborEdgeCounts.get(n)||0)+1);
+            }
+            if(cell.y > 0){
+              const n = current[idx-w];
+              if(n !== curColor) neighborEdgeCounts.set(n, (neighborEdgeCounts.get(n)||0)+1);
+            }
+            if(cell.y < h-1){
+              const n = current[idx+w];
+              if(n !== curColor) neighborEdgeCounts.set(n, (neighborEdgeCounts.get(n)||0)+1);
+            }
+          }
+
+          if(neighborEdgeCounts.size === 0) continue;
+
+          let bestColor = null;
+          let bestEdges = -1;
+
+          for(const [color, edges] of neighborEdgeCounts.entries()){
+            if(edges > bestEdges){
+              bestEdges = edges;
+              bestColor = color;
+            }
+          }
+
+          if(bestColor === null) continue;
+
+          for(const cell of region.cells){
+            current[cell.y*w + cell.x] = bestColor;
+          }
+          changed = true;
+        }
+
+        if(!changed) break;
+      }
+
+      return current;
+    }
+
+    function mergeNearbySmallRegions(labels, w, h, mergeLimit, maxRegions){
+      const targetCount = Math.max(0, parseInt(maxRegions, 10) || 0);
+      const mergeThreshold = Math.max(0, parseInt(mergeLimit, 10) || 0);
+
+      if(mergeThreshold <= 0 && targetCount <= 0) return labels;
+
+      let current = labels.slice();
+
+      for(let pass=0; pass<30; pass++){
+        const regionsData = buildRegions(current, w, h);
+        const regionCount = regionsData.regions.length;
+
+        if(regionCount <= targetCount && mergeThreshold <= 0) break;
+        if(regionCount <= targetCount && mergeThreshold > 0){
+          const hasSmallRegion = regionsData.regions.some(region => region.size <= mergeThreshold && region.size < w*h);
+          if(!hasSmallRegion) break;
+        }
+
+        const regions = regionsData.regions.slice().sort((a,b)=>a.size-b.size);
+        let changed = false;
+        let remaining = regionCount;
+
+        for(const region of regions){
+          if(region.size >= w*h) continue;
+
+          const mustReduceCount = targetCount > 0 && remaining > targetCount;
+          const isSmallEnough = mergeThreshold > 0 && region.size <= mergeThreshold;
+
+          if(!mustReduceCount && !isSmallEnough) continue;
+
+          const targetColor = findBestNeighborColor(current, region, w, h);
+          if(targetColor === null || targetColor === region.color) continue;
+
+          for(const cell of region.cells){
+            current[cell.y*w + cell.x] = targetColor;
+          }
+          remaining--;
+          changed = true;
+
+          if(targetCount > 0 && remaining <= targetCount && !isSmallEnough){
+            break;
+          }
+        }
+
+        if(!changed) break;
+
+        if(targetCount > 0){
+          const nextCount = buildRegions(current, w, h).regions.length;
+          if(nextCount <= targetCount && mergeThreshold <= 0) break;
+        }
+      }
+
+      return current;
+    }
+
+    function findBestNeighborColor(labels, region, w, h){
+      const counts = new Map();
+
+      for(const cell of region.cells){
+        const idx = cell.y*w + cell.x;
+        const cur = labels[idx];
+
+        if(cell.x > 0){
+          const n = labels[idx-1];
+          if(n !== cur) counts.set(n, (counts.get(n) || 0) + 1);
+        }
+        if(cell.x < w-1){
+          const n = labels[idx+1];
+          if(n !== cur) counts.set(n, (counts.get(n) || 0) + 1);
+        }
+        if(cell.y > 0){
+          const n = labels[idx-w];
+          if(n !== cur) counts.set(n, (counts.get(n) || 0) + 1);
+        }
+        if(cell.y < h-1){
+          const n = labels[idx+w];
+          if(n !== cur) counts.set(n, (counts.get(n) || 0) + 1);
+        }
+      }
+
+      let bestColor = null;
+      let bestScore = -1;
+      for(const [color, score] of counts.entries()){
+        if(score > bestScore){
+          bestColor = color;
+          bestScore = score;
+        }
+      }
+      return bestColor;
+    }
+
+    function buildRegions(labels, w, h){
+      const size = w*h;
+      const visited = new Uint8Array(size);
+      const regionIdMap = new Int32Array(size);
+      regionIdMap.fill(-1);
+      const regions = [];
+      const stack = [];
+      let regionId = 0;
+
+      for(let i=0; i<size; i++){
+        if(visited[i]) continue;
+        const color = labels[i];
+
+        const region = {
+          id: regionId,
+          color,
+          size: 0,
+          cells: [],
+          minX: Infinity,
+          minY: Infinity,
+          maxX: -Infinity,
+          maxY: -Infinity,
+          sumX: 0,
+          sumY: 0
+        };
+
+        visited[i] = 1;
+        stack.push(i);
+
+        while(stack.length){
+          const idx = stack.pop();
+          regionIdMap[idx] = regionId;
+          const x = idx % w;
+          const y = (idx / w) | 0;
+
+          region.size++;
+          region.cells.push({x, y});
+          region.sumX += x;
+          region.sumY += y;
+          if(x < region.minX) region.minX = x;
+          if(y < region.minY) region.minY = y;
+          if(x > region.maxX) region.maxX = x;
+          if(y > region.maxY) region.maxY = y;
+
+          if(x > 0){
+            const n = idx-1;
+            if(!visited[n] && labels[n] === color){ visited[n] = 1; stack.push(n); }
+          }
+          if(x < w-1){
+            const n = idx+1;
+            if(!visited[n] && labels[n] === color){ visited[n] = 1; stack.push(n); }
+          }
+          if(y > 0){
+            const n = idx-w;
+            if(!visited[n] && labels[n] === color){ visited[n] = 1; stack.push(n); }
+          }
+          if(y < h-1){
+            const n = idx+w;
+            if(!visited[n] && labels[n] === color){ visited[n] = 1; stack.push(n); }
+          }
+        }
+
+        regions.push(region);
+        regionId++;
+      }
+
+      return {regions, regionIdMap};
+    }
+
+    function drawPlaceholder(){
+      const placeholderCanvases = [canvases.original, canvases.raster, canvases.quant, canvases.region, canvases.outline];
+      for(const canvas of placeholderCanvases){
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle = '#c4cfdf';
+        ctx.font = '600 18px Inter, Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Vorschau', canvas.width/2, canvas.height/2);
+      }
+    }
+  </script>
+</body>
+</html>
